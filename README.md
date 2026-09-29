@@ -10,7 +10,7 @@ Event Competition & Fan Engagement Platform para **Guerra de Bandas** (Antisocia
 ```bash
 cp .env.example .env            # ajusta secretos si quieres
 pnpm install
-pnpm docker:dev                 # Postgres 17 en :5480 + Mailpit en :8025
+pnpm docker:dev                 # Postgres 17 en :5480 + Mailpit en :8025 (en PowerShell 5.1 separa los comandos con ; no con &&)
 pnpm db:migrate                 # aplica migraciones (con triggers de inmutabilidad y NOTIFY)
 pnpm seed                       # organización, 16 bandas, 4 noches + final, jurado/staff con links, sponsors, convocatoria
 pnpm dev                        # http://localhost:3000
