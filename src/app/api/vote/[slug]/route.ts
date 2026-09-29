@@ -31,7 +31,7 @@ export const GET = route<{ slug: string }>(async ({ params, req }) => {
 });
 
 const submitSchema = z.object({
-  submissionKey: z.string().uuid(),
+  submissionKey: z.string().min(16).max(80),
   performanceId: z.string().min(1),
   items: z.array(z.object({ criterionId: z.string().min(1), value: z.number().int() })).min(1),
   comment: z.string().max(500).optional().nullable(),

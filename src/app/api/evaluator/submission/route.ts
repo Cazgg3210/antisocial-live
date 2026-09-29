@@ -5,7 +5,7 @@ import { saveDraft, submitFinal } from "@/modules/evaluation/service";
 
 const schema = z.object({
   performanceId: z.string().min(1),
-  submissionKey: z.string().uuid(),
+  submissionKey: z.string().min(16).max(80),
   items: z.array(z.object({ criterionId: z.string().min(1), value: z.number().int() })),
   comment: z.string().max(1000).optional().nullable(),
   final: z.boolean().default(false),

@@ -40,7 +40,7 @@ export function errorResponse(err: unknown, requestId: string): Response {
   }
   if (err instanceof ZodError) {
     return NextResponse.json(
-      { error: { code: "VALIDATION", message: "Invalid input", details: { issues: err.issues } }, requestId },
+      { error: { code: "VALIDATION", message: `Invalid input: ${err.issues.map((i) => `${i.path.join(".") || "body"} ${i.message}`).join("; ")}`, details: { issues: err.issues } }, requestId },
       { status: 400, headers: { "x-request-id": requestId } },
     );
   }
