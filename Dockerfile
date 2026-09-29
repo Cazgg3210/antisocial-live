@@ -26,9 +26,12 @@ WORKDIR /migrate
 COPY --from=deps /app/node_modules/prisma/package.json ./prisma-version.json
 # npm gives a flat node_modules (no pnpm symlinks) with the exact prisma version the app resolved.
 RUN V=$(node -p "require('./prisma-version.json').version") \
- && npm init -y >/dev/null && npm install --omit=dev --no-audit --no-fund prisma@$V @prisma/config@$V
+ && npm init -y >/dev/null \
+ && npm install --omit=dev --no-audit --no-fund prisma@$V @prisma/config@$V @prisma/client@$V @prisma/adapter-pg@$V pg@8 @node-rs/argon2@2 tsx@4 dotenv@18
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
+# Generates the client next to the seed so `SEED_MINIMAL_ON_BOOT=true` can bootstrap a fresh database.
+RUN node node_modules/prisma/build/index.js generate
 
 FROM base AS runner
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
