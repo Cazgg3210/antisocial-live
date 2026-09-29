@@ -1,26 +1,113 @@
 @import "tailwindcss";
 
+/* ───────────── ANTISOCIAL LIVE design tokens ─────────────
+   Theme "antisocial": nightlife / rock / neon on black. Admin surfaces use the same tokens
+   at lower intensity; Stage uses them at full intensity. Never hardcode brand colors in components. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #07070a;
+  --bg-elevated: #0f0f14;
+  --bg-panel: #16161d;
+  --border: #26262f;
+  --fg: #f4f4f6;
+  --fg-muted: #a1a1ad;
+  --fg-subtle: #6b6b78;
+
+  --magenta: #ff2d95;
+  --magenta-soft: #ff6cb5;
+  --cyan: #19e6ff;
+  --acid: #b6ff1a;
+  --yellow: #ffd60a;
+  --danger: #ff4d4d;
+  --success: #37e07c;
+  --warning: #ffb020;
+
+  --accent: var(--magenta);
+  --accent-2: var(--cyan);
+  --gradient-brand: linear-gradient(135deg, var(--magenta) 0%, var(--cyan) 60%, var(--acid) 100%);
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --shadow-glow: 0 0 40px rgba(255, 45, 149, 0.25);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-panel: var(--bg-panel);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-magenta: var(--magenta);
+  --color-magenta-soft: var(--magenta-soft);
+  --color-cyan: var(--cyan);
+  --color-acid: var(--acid);
+  --color-yellow: var(--yellow);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --radius-lg: var(--radius);
+  --radius-md: var(--radius-sm);
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.text-gradient {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glow {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Reveal animations (Stage). Respect reduced motion. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(25, 230, 255, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 60px rgba(255, 45, 149, 0.45);
+  }
+}
+.anim-rise {
+  animation: rise-in 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.anim-pulse {
+  animation: pulse-glow 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-rise,
+  .anim-pulse {
+    animation: none;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Large touch targets for public voting */
+.score-btn {
+  min-height: 52px;
+  min-width: 52px;
 }

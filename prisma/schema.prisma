@@ -1,0 +1,1292 @@
+// ANTISOCIAL LIVE — domain schema.
+// Conventions: cuid(2) public ids, UTC timestamps, weights in basis points (10000 = 100%),
+// scores as NUMERIC. Immutable tables (audit_event, result_snapshot, configuration_snapshot)
+// are protected by DB triggers defined in migrations, not here.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── ENUMS ─────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ORGANIZATION_ADMIN
+  EVENT_MANAGER
+  STAGE_OPERATOR
+  STAFF_COORDINATOR
+}
+
+enum EventMode {
+  REHEARSAL
+  LIVE
+}
+
+enum EventStatus {
+  DRAFT
+  CONFIGURING
+  READY
+  LIVE
+  CLOSING
+  COMPLETED
+  ARCHIVED
+}
+
+enum RoundStatus {
+  PENDING
+  ACTIVE
+  SCORED
+  PUBLISHED
+  CLOSED
+}
+
+enum PerformanceStatus {
+  SCHEDULED
+  ON_STAGE
+  VOTING_OPEN
+  GRACE_PERIOD
+  VOTING_CLOSED
+  CALCULATING
+  RESULT_READY
+  PARTIAL_REVEALED
+  FINALIZED
+  CANCELLED
+}
+
+enum StageSceneType {
+  WELCOME
+  NEXT_BAND
+  BAND_PLAYING
+  VOTE_NOW
+  VOTING_COUNTDOWN
+  VOTING_CLOSED
+  CALCULATING
+  PARTIAL_RESULT
+  BREAK
+  SPONSOR
+  FINAL_COUNTDOWN
+  LEADERBOARD
+  QUALIFIERS
+  WINNER
+  TECHNICAL_HOLD
+}
+
+enum TimerStatus {
+  IDLE
+  RUNNING
+  PAUSED
+  OVERTIME
+  STOPPED
+}
+
+enum GroupKind {
+  PUBLIC
+  STAFF
+  JUDGE
+}
+
+enum SubmissionStatus {
+  DRAFT
+  ACCEPTED
+  REJECTED
+  FLAGGED_FOR_REVIEW
+}
+
+enum AggregationMethod {
+  MEAN
+  MEDIAN
+  TRIMMED_MEAN
+}
+
+enum MissingEvaluatorPolicy {
+  REDISTRIBUTE
+  REQUIRE_MIN
+  ZERO_WEIGHT
+}
+
+enum MinVotesPolicy {
+  BLOCK
+  REDISTRIBUTE
+  ZERO_WEIGHT
+}
+
+enum VoterNormalization {
+  NONE
+  Z_SCORE_PER_VOTER
+}
+
+enum JudgeNormalization {
+  NONE
+  Z_SCORE_PER_JUDGE
+}
+
+enum PartialRevealPolicy {
+  NONE
+  JUDGES_ONLY
+  STAFF_ONLY
+  JUDGES_AND_STAFF
+  ALL_GROUPS
+  FINAL_ONLY
+}
+
+enum RevealOrder {
+  ASCENDING
+  DESCENDING
+  ALPHABETICAL
+}
+
+enum RevealStyle {
+  ONE_BY_ONE
+  ALL_AT_ONCE
+}
+
+enum OvertimePolicy {
+  NONE
+  TIE_BREAKER
+  PENALTY
+}
+
+enum RoundingMode {
+  HALF_UP
+  HALF_EVEN
+}
+
+enum ScorecardVariant {
+  FULL
+  QUICK
+}
+
+enum BandReportLevel {
+  NONE
+  SUMMARY
+  DETAILED
+}
+
+enum QualificationStatus {
+  PENDING
+  QUALIFIED
+  ELIMINATED
+}
+
+enum TokenKind {
+  JUDGE
+  STAFF
+  BAND_MANAGER
+}
+
+enum TokenStatus {
+  ACTIVE
+  USED
+  REVOKED
+  EXPIRED
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  SHORTLISTED
+  ACCEPTED
+  REJECTED
+  CONFIRMED
+}
+
+enum CallStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum PlacementKind {
+  STAGE_TRANSITION
+  STAGE_BREAK
+  STAGE_PRESENTED_BY
+  VOTE_LANDING_HEADER
+  THANK_YOU_CTA
+  BAND_REPORT_FOOTER
+  RECAP_EMAIL
+}
+
+enum InteractionKind {
+  IMPRESSION
+  CLICK
+  QR_SCAN
+}
+
+enum ConsentKind {
+  PRIVACY_NOTICE
+  MARKETING_EMAIL
+  MARKETING_WHATSAPP
+  FOLLOW_BAND
+  CONTEST_RULES
+  IMAGE_RIGHTS
+}
+
+enum ContactStatus {
+  ACTIVE
+  UNSUBSCRIBED
+  DELETED
+}
+
+enum AttributionKind {
+  RESERVATION_CLICK
+  RESERVATION_CONFIRMED
+  BAND_FOLLOW
+  SPONSOR_CLICK
+  OPT_IN
+}
+
+enum ActorType {
+  USER
+  EVALUATOR
+  VOTER
+  BAND_MANAGER
+  SYSTEM
+}
+
+enum DataRequestKind {
+  ACCESS
+  RECTIFICATION
+  CANCELLATION
+  OPPOSITION
+}
+
+enum DataRequestStatus {
+  RECEIVED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+enum NotificationAudience {
+  JUDGES
+  STAFF
+  CONTROL
+  ALL_EVALUATORS
+}
+
+enum IncidentSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// ───────────────────────────── ORGANIZATION ─────────────────────────────
+
+model Organization {
+  id           String   @id @default(cuid(2))
+  name         String
+  slug         String   @unique
+  legalName    String?
+  address      String?
+  contactEmail String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  venues       Venue[]
+  users        User[]
+  series       EventSeries[]
+  bands        Band[]
+  people       Person[]
+  sponsors     Sponsor[]
+  contacts     AudienceContact[]
+  dataRequests DataRequest[]
+  retention    RetentionPolicy[]
+  integrations Integration[]
+}
+
+model Venue {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  name           String
+  slug           String
+  address        String?
+  timezone       String   @default("America/Mexico_City")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  events       EventEdition[]
+
+  @@unique([organizationId, slug])
+}
+
+// ───────────────────────────── IDENTITY ─────────────────────────────
+
+model User {
+  id             String    @id @default(cuid(2))
+  organizationId String
+  email          String    @unique
+  name           String
+  passwordHash   String
+  locale         String    @default("es-MX")
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  roles        RoleAssignment[]
+  locks        OperatorLock[]
+}
+
+model RoleAssignment {
+  id        String   @id @default(cuid(2))
+  userId    String
+  role      Role
+  eventId   String?
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event EventEdition? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role, eventId])
+  @@index([eventId])
+}
+
+/// A judge, staff member or band contact. Not a login account.
+model Person {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  name           String
+  email          String?
+  phone          String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id])
+  assignments  EvaluatorAssignment[]
+
+  @@index([organizationId])
+}
+
+model EvaluatorAssignment {
+  id                 String           @id @default(cuid(2))
+  personId           String
+  eventId            String
+  group              GroupKind
+  individualWeightBp Int              @default(10000)
+  status             AssignmentStatus @default(ACTIVE)
+  pinHash            String?
+  deviceId           String?
+  lastSeenAt         DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  person      Person               @relation(fields: [personId], references: [id])
+  event       EventEdition         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tokens      AccessToken[]
+  submissions ScoreSubmission[]
+  conflicts   ConflictOfInterest[]
+
+  @@unique([personId, eventId, group])
+  @@index([eventId, group])
+}
+
+model AccessToken {
+  id           String      @id @default(cuid(2))
+  tokenHash    String      @unique
+  kind         TokenKind
+  eventId      String
+  assignmentId String?
+  bandId       String?
+  status       TokenStatus @default(ACTIVE)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  revokedAt    DateTime?
+  createdBy    String?
+  createdAt    DateTime    @default(now())
+
+  event      EventEdition         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  assignment EvaluatorAssignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  band       Band?                @relation(fields: [bandId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, kind])
+}
+
+model ConflictOfInterest {
+  id           String   @id @default(cuid(2))
+  assignmentId String
+  bandId       String
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  assignment EvaluatorAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  band       Band                @relation(fields: [bandId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, bandId])
+}
+
+// ───────────────────────────── EVENTS ─────────────────────────────
+
+model EventSeries {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  editions     EventEdition[]
+  calls        ApplicationCall[]
+
+  @@unique([organizationId, slug])
+}
+
+model EventEdition {
+  id                 String      @id @default(cuid(2))
+  seriesId           String
+  venueId            String
+  name               String
+  slug               String      @unique
+  mode               EventMode   @default(REHEARSAL)
+  status             EventStatus @default(DRAFT)
+  version            Int         @default(1)
+  scheduledAt        DateTime
+  expectedAttendance Int?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdBy          String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  series           EventSeries             @relation(fields: [seriesId], references: [id])
+  venue            Venue                   @relation(fields: [venueId], references: [id])
+  config           EventConfig?
+  groups           VotingGroup[]
+  scorecards       ScorecardTemplate[]
+  rounds           Round[]
+  assignments      EvaluatorAssignment[]
+  tokens           AccessToken[]
+  roles            RoleAssignment[]
+  snapshots        ConfigurationSnapshot[]
+  results          ResultSnapshot[]
+  submissions      ScoreSubmission[]
+  stageScene       StageScene?
+  operatorLock     OperatorLock?
+  incidents        Incident[]
+  notifications    Notification[]
+  securitySalt     EventSecuritySalt?
+  placements       SponsorPlacement[]
+  interactions     SponsorInteraction[]
+  attributions     Attribution[]
+  bandReports      BandReport[]
+  contacts         AudienceContact[]
+  auditEvents      AuditEvent[]
+  voterEventStates VoterEventState[]
+
+  @@index([seriesId])
+}
+
+/// All per-event business policies. Every field is configurable; defaults are demo values (see BUSINESS_RULES.md).
+model EventConfig {
+  id      String @id @default(cuid(2))
+  eventId String @unique
+
+  // Voting window
+  graceSeconds           Int              @default(5)
+  allowVoteEdit          Boolean          @default(false)
+  screenCodeRequired     Boolean          @default(true)
+  screenCodeRotationSec  Int              @default(60)
+  turnstileEnabled       Boolean          @default(false)
+  publicScorecardVariant ScorecardVariant @default(FULL)
+
+  // Public fairness
+  voterNormalization    VoterNormalization @default(NONE)
+  multiBandVoterBoostBp Int                @default(10000)
+  multiBandVoterMin     Int                @default(2)
+  porraPatternFlag      Boolean            @default(true)
+  bayesianPriorVotes    Int                @default(0)
+  judgeNormalization    JudgeNormalization @default(NONE)
+
+  // Precision
+  decimalPrecision Int          @default(2)
+  roundingMode     RoundingMode @default(HALF_UP)
+
+  // Reveal
+  partialRevealPolicy   PartialRevealPolicy @default(JUDGES_ONLY)
+  finalRevealOrder      RevealOrder         @default(ASCENDING)
+  finalRevealStyle      RevealStyle         @default(ONE_BY_ONE)
+  requireResultApproval Boolean             @default(false)
+  showVoteCountPublicly Boolean             @default(true)
+
+  // Timer
+  timerPlannedSeconds  Int            @default(2700)
+  timerReminderOffsets Int[]          @default([600, 300, 120, 0, -120])
+  stageShowTimer       Boolean        @default(false)
+  overtimePolicy       OvertimePolicy @default(NONE)
+  overtimePenaltyBp    Int            @default(0)
+
+  // Tie breakers: ordered list of { kind, criterionKey? }
+  tieBreakers Json @default("[{\"kind\":\"JUDGE_SCORE\"},{\"kind\":\"PUBLIC_SCORE\"},{\"kind\":\"CRITERION\",\"criterionKey\":\"conexion\"},{\"kind\":\"MANUAL\"}]")
+
+  // Commercial
+  bandReportEnabled       Boolean         @default(false)
+  bandReportLevel         BandReportLevel @default(SUMMARY)
+  postVoteShowBandProfile Boolean         @default(true)
+  postVoteShowOptIn       Boolean         @default(true)
+  postVoteShowReservation Boolean         @default(true)
+  reservationUrl          String?
+  postVoteShowSponsor     Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event EventEdition @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model VotingGroup {
+  id                     String                 @id @default(cuid(2))
+  eventId                String
+  kind                   GroupKind
+  name                   String
+  weightBp               Int
+  aggregation            AggregationMethod      @default(MEAN)
+  trimPercentBp          Int                    @default(1000)
+  minSubmissions         Int                    @default(1)
+  minVotesPolicy         MinVotesPolicy         @default(BLOCK)
+  missingEvaluatorPolicy MissingEvaluatorPolicy @default(REDISTRIBUTE)
+  requiredEvaluatorCount Int                    @default(1)
+  scorecardId            String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  event     EventEdition       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  scorecard ScorecardTemplate? @relation(fields: [scorecardId], references: [id])
+
+  @@unique([eventId, kind])
+}
+
+model ScorecardTemplate {
+  id        String   @id @default(cuid(2))
+  eventId   String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event    EventEdition  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  criteria Criterion[]
+  groups   VotingGroup[]
+}
+
+model Criterion {
+  id                String   @id @default(cuid(2))
+  scorecardId       String
+  key               String
+  nameEs            String
+  nameEn            String
+  descriptionEs     String?
+  descriptionEn     String?
+  order             Int
+  weightBp          Int
+  scaleMin          Int      @default(1)
+  scaleMax          Int      @default(10)
+  countsTowardScore Boolean  @default(true)
+  includedInQuick   Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  scorecard ScorecardTemplate @relation(fields: [scorecardId], references: [id], onDelete: Cascade)
+  items     ScoreItem[]
+
+  @@unique([scorecardId, key])
+}
+
+model ConfigurationSnapshot {
+  id        String   @id @default(cuid(2))
+  eventId   String
+  version   Int
+  payload   Json
+  hash      String
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  event        EventEdition     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  performances Performance[]
+  results      ResultSnapshot[]
+
+  @@unique([eventId, version])
+}
+
+model Round {
+  id              String      @id @default(cuid(2))
+  eventId         String
+  name            String
+  order           Int
+  status          RoundStatus @default(PENDING)
+  qualifiersCount Int         @default(1)
+  nextRoundId     String?
+  publishedAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  event          EventEdition       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  nextRound      Round?             @relation("RoundAdvancement", fields: [nextRoundId], references: [id])
+  previousRounds Round[]            @relation("RoundAdvancement")
+  performances   Performance[]
+  qualifications Qualification[]
+  rankings       Ranking[]
+  tieBreaks      TieBreakDecision[]
+  results        ResultSnapshot[]
+  submissions    ScoreSubmission[]
+
+  @@unique([eventId, order])
+}
+
+model Band {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  name           String
+  slug           String
+  isTribute      Boolean  @default(false)
+  genre          String?
+  city           String?
+  description    String?
+  imageUrl       String?
+  instagram      String?
+  tiktok         String?
+  spotify        String?
+  youtube        String?
+  contactEmail   String?
+  contactPhone   String?
+  membersJson    Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization     Organization         @relation(fields: [organizationId], references: [id])
+  performances     Performance[]
+  tokens           AccessToken[]
+  conflicts        ConflictOfInterest[]
+  qualifications   Qualification[]
+  reports          BandReport[]
+  consents         Consent[]
+  attributions     Attribution[]
+  application      BandApplication?
+  contacts         AudienceContact[]
+  voterEventStates VoterEventState[]
+
+  @@unique([organizationId, slug])
+}
+
+model Performance {
+  id                      String            @id @default(cuid(2))
+  roundId                 String
+  bandId                  String
+  slotOrder               Int
+  status                  PerformanceStatus @default(SCHEDULED)
+  version                 Int               @default(1)
+  configurationSnapshotId String?
+  currentResultId         String?           @unique
+  onStageAt               DateTime?
+  votingOpenedAt          DateTime?
+  votingClosedAt          DateTime?
+  graceUntil              DateTime?
+  finalizedAt             DateTime?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  round         Round                  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  band          Band                   @relation(fields: [bandId], references: [id])
+  snapshot      ConfigurationSnapshot? @relation(fields: [configurationSnapshotId], references: [id])
+  currentResult ResultSnapshot?        @relation("CurrentResult", fields: [currentResultId], references: [id])
+  timer         PerformanceTimer?
+  submissions   ScoreSubmission[]
+  results       ResultSnapshot[]       @relation("PerformanceResults")
+  qualification Qualification?
+  interactions  SponsorInteraction[]
+  reports       BandReport[]
+  notifications Notification[]
+
+  @@unique([roundId, bandId])
+  @@unique([roundId, slotOrder])
+  @@index([status])
+}
+
+model PerformanceTimer {
+  id                 String      @id @default(cuid(2))
+  performanceId      String      @unique
+  status             TimerStatus @default(IDLE)
+  plannedSeconds     Int
+  startedAt          DateTime?
+  pausedAt           DateTime?
+  pausedTotalSeconds Int         @default(0)
+  stoppedAt          DateTime?
+  actualSeconds      Int?
+  overtimeSeconds    Int?
+  remindersSent      Int[]       @default([])
+  updatedAt          DateTime    @updatedAt
+
+  performance Performance @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────────── VOTING ─────────────────────────────
+
+model VoterSession {
+  id                  String    @id @default(cuid(2))
+  secretHash          String    @unique
+  createdAt           DateTime  @default(now())
+  lastSeenAt          DateTime  @default(now())
+  turnstileVerifiedAt DateTime?
+  locale              String    @default("es-MX")
+  uaSummary           String?
+
+  submissions  ScoreSubmission[]
+  consents     Consent[]
+  interactions SponsorInteraction[]
+  attributions Attribution[]
+  eventStates  VoterEventState[]
+  contacts     AudienceContact[]
+}
+
+/// Per-event data about a voter session (ip hash uses the event salt; refBand for fan attribution).
+model VoterEventState {
+  id             String   @id @default(cuid(2))
+  voterSessionId String
+  eventId        String
+  ipHash         String?
+  refBandId      String?
+  firstSeenAt    DateTime @default(now())
+
+  session VoterSession @relation(fields: [voterSessionId], references: [id], onDelete: Cascade)
+  event   EventEdition @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  refBand Band?        @relation(fields: [refBandId], references: [id])
+
+  @@unique([voterSessionId, eventId])
+  @@index([eventId, ipHash])
+}
+
+model EventSecuritySalt {
+  id          String    @id @default(cuid(2))
+  eventId     String    @unique
+  salt        String?
+  destroyedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  event EventEdition @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model ScoreSubmission {
+  id               String           @id @default(cuid(2))
+  submissionKey    String           @unique
+  eventId          String
+  roundId          String
+  performanceId    String
+  group            GroupKind
+  voterSessionId   String?
+  assignmentId     String?
+  scorecardVariant ScorecardVariant @default(FULL)
+  status           SubmissionStatus @default(ACCEPTED)
+  riskScoreBp      Int              @default(0)
+  riskSignals      Json             @default("[]")
+  submittedAt      DateTime         @default(now())
+  acceptedInGrace  Boolean          @default(false)
+  lockedAt         DateTime?
+  unlockedAt       DateTime?
+  unlockedBy       String?
+  unlockReason     String?
+  reviewedAt       DateTime?
+  reviewedBy       String?
+  reviewReason     String?
+  comment          String?
+  clientDurationMs Int?
+  locale           String           @default("es-MX")
+  revision         Int              @default(1)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  event       EventEdition         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  round       Round                @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  performance Performance          @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+  session     VoterSession?        @relation(fields: [voterSessionId], references: [id])
+  assignment  EvaluatorAssignment? @relation(fields: [assignmentId], references: [id])
+  items       ScoreItem[]
+  revisions   SubmissionRevision[]
+
+  @@unique([performanceId, voterSessionId])
+  @@unique([performanceId, assignmentId])
+  @@index([performanceId, group, status])
+  @@index([eventId, voterSessionId])
+}
+
+model ScoreItem {
+  id           String @id @default(cuid(2))
+  submissionId String
+  criterionId  String
+  value        Int
+
+  submission ScoreSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  criterion  Criterion       @relation(fields: [criterionId], references: [id])
+
+  @@unique([submissionId, criterionId])
+}
+
+model SubmissionRevision {
+  id           String           @id @default(cuid(2))
+  submissionId String
+  revision     Int
+  itemsJson    Json
+  comment      String?
+  status       SubmissionStatus
+  reason       String?
+  createdAt    DateTime         @default(now())
+
+  submission ScoreSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, revision])
+}
+
+// ───────────────────────────── RESULTS ─────────────────────────────
+
+model ResultSnapshot {
+  id                      String    @id @default(cuid(2))
+  eventId                 String
+  roundId                 String
+  performanceId           String
+  configurationSnapshotId String
+  engineVersion           String
+  payload                 Json
+  finalScore              Decimal   @db.Decimal(12, 6)
+  hash                    String
+  previousHash            String?
+  calculatedAt            DateTime  @default(now())
+  calculatedBy            String?
+  approvedAt              DateTime?
+  approvedBy              String?
+  partialRevealedAt       DateTime?
+  publishedAt             DateTime?
+  publishedBy             String?
+
+  event       EventEdition          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  round       Round                 @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  performance Performance           @relation("PerformanceResults", fields: [performanceId], references: [id], onDelete: Cascade)
+  snapshot    ConfigurationSnapshot @relation(fields: [configurationSnapshotId], references: [id])
+  currentFor  Performance?          @relation("CurrentResult")
+
+  @@index([performanceId, calculatedAt])
+}
+
+model Ranking {
+  id        String   @id @default(cuid(2))
+  roundId   String
+  payload   Json
+  hash      String
+  isFinal   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([roundId, createdAt])
+}
+
+model Qualification {
+  id                      String              @id @default(cuid(2))
+  roundId                 String
+  performanceId           String              @unique
+  bandId                  String
+  position                Int
+  finalScore              Decimal             @db.Decimal(12, 6)
+  status                  QualificationStatus @default(PENDING)
+  tieBreakApplied         Json?
+  advancedToPerformanceId String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  round       Round       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  performance Performance @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+  band        Band        @relation(fields: [bandId], references: [id])
+
+  @@unique([roundId, bandId])
+}
+
+model TieBreakDecision {
+  id         String   @id @default(cuid(2))
+  roundId    String
+  bandIds    String[]
+  method     String
+  reason     String
+  decidedBy  String
+  approvedBy String?
+  createdAt  DateTime @default(now())
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────────── OPERATIONS ─────────────────────────────
+
+model StageScene {
+  id        String         @id @default(cuid(2))
+  eventId   String         @unique
+  type      StageSceneType @default(WELCOME)
+  payload   Json           @default("{}")
+  version   Int            @default(1)
+  updatedBy String?
+  updatedAt DateTime       @updatedAt
+
+  event EventEdition @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model OperatorLock {
+  id          String   @id @default(cuid(2))
+  eventId     String   @unique
+  userId      String
+  takenAt     DateTime @default(now())
+  heartbeatAt DateTime @default(now())
+
+  event EventEdition @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User         @relation(fields: [userId], references: [id])
+}
+
+model Incident {
+  id          String           @id @default(cuid(2))
+  eventId     String
+  severity    IncidentSeverity @default(WARNING)
+  kind        String
+  description String
+  createdBy   String?
+  resolvedAt  DateTime?
+  createdAt   DateTime         @default(now())
+
+  event EventEdition @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
+}
+
+model Notification {
+  id            String               @id @default(cuid(2))
+  eventId       String
+  performanceId String?
+  audience      NotificationAudience
+  kind          String
+  titleEs       String
+  titleEn       String
+  bodyEs        String?
+  bodyEn        String?
+  createdAt     DateTime             @default(now())
+  expiresAt     DateTime?
+
+  event       EventEdition @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  performance Performance? @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, createdAt])
+}
+
+// ───────────────────────────── AUDIT ─────────────────────────────
+
+model AuditEvent {
+  id            String    @id @default(cuid(2))
+  eventId       String?
+  performanceId String?
+  actorType     ActorType
+  actorId       String?
+  actorLabel    String?
+  action        String
+  entityType    String?
+  entityId      String?
+  payload       Json      @default("{}")
+  ipHash        String?
+  requestId     String?
+  previousHash  String?
+  hash          String
+  createdAt     DateTime  @default(now())
+
+  event EventEdition? @relation(fields: [eventId], references: [id])
+
+  @@index([eventId, createdAt])
+  @@index([action])
+}
+
+// ───────────────────────────── COMMERCIAL ─────────────────────────────
+
+model Sponsor {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  name           String
+  slug           String
+  logoUrl        String?
+  websiteUrl     String?
+  contactName    String?
+  contactEmail   String?
+  notes          String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  campaigns    Campaign[]
+
+  @@unique([organizationId, slug])
+}
+
+model Campaign {
+  id        String    @id @default(cuid(2))
+  sponsorId String
+  name      String
+  startsAt  DateTime?
+  endsAt    DateTime?
+  priority  Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  sponsor    Sponsor            @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  placements SponsorPlacement[]
+}
+
+model SponsorPlacement {
+  id         String        @id @default(cuid(2))
+  campaignId String
+  eventId    String?
+  kind       PlacementKind
+  code       String        @unique
+  imageUrl   String?
+  headlineEs String?
+  headlineEn String?
+  ctaLabelEs String?
+  ctaLabelEn String?
+  ctaUrl     String?
+  isActive   Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  campaign     Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  event        EventEdition?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  interactions SponsorInteraction[]
+
+  @@index([eventId, kind, isActive])
+}
+
+model SponsorInteraction {
+  id             String          @id @default(cuid(2))
+  placementId    String
+  kind           InteractionKind
+  eventId        String?
+  performanceId  String?
+  voterSessionId String?
+  createdAt      DateTime        @default(now())
+
+  placement   SponsorPlacement @relation(fields: [placementId], references: [id], onDelete: Cascade)
+  event       EventEdition?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  performance Performance?     @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+  session     VoterSession?    @relation(fields: [voterSessionId], references: [id])
+
+  @@index([placementId, kind, createdAt])
+}
+
+model AudienceContact {
+  id             String        @id @default(cuid(2))
+  organizationId String
+  email          String?
+  phone          String?
+  name           String?
+  locale         String        @default("es-MX")
+  status         ContactStatus @default(ACTIVE)
+  source         String
+  eventId        String?
+  refBandId      String?
+  voterSessionId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  event        EventEdition? @relation(fields: [eventId], references: [id])
+  refBand      Band?         @relation(fields: [refBandId], references: [id])
+  session      VoterSession? @relation(fields: [voterSessionId], references: [id])
+  consents     Consent[]
+  attributions Attribution[]
+
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
+}
+
+model Consent {
+  id              String      @id @default(cuid(2))
+  kind            ConsentKind
+  documentVersion String
+  textShown       String
+  source          String
+  contactId       String?
+  voterSessionId  String?
+  applicationId   String?
+  bandId          String?
+  ipHash          String?
+  grantedAt       DateTime    @default(now())
+  revokedAt       DateTime?
+
+  contact     AudienceContact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  session     VoterSession?    @relation(fields: [voterSessionId], references: [id])
+  application BandApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  band        Band?            @relation(fields: [bandId], references: [id])
+
+  @@index([contactId, kind])
+  @@index([bandId, kind])
+}
+
+model Attribution {
+  id             String          @id @default(cuid(2))
+  kind           AttributionKind
+  eventId        String
+  bandId         String?
+  placementId    String?
+  voterSessionId String?
+  contactId      String?
+  url            String?
+  utm            Json?
+  createdAt      DateTime        @default(now())
+
+  event   EventEdition     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  band    Band?            @relation(fields: [bandId], references: [id])
+  session VoterSession?    @relation(fields: [voterSessionId], references: [id])
+  contact AudienceContact? @relation(fields: [contactId], references: [id])
+
+  @@index([eventId, kind])
+}
+
+model BandReport {
+  id            String          @id @default(cuid(2))
+  eventId       String
+  bandId        String
+  performanceId String
+  level         BandReportLevel
+  payload       Json
+  viewTokenHash String          @unique
+  sentAt        DateTime?
+  sentTo        String?
+  createdAt     DateTime        @default(now())
+
+  event       EventEdition @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  band        Band         @relation(fields: [bandId], references: [id])
+  performance Performance  @relation(fields: [performanceId], references: [id], onDelete: Cascade)
+
+  @@unique([performanceId, bandId])
+}
+
+// ───────────────────────────── APPLICATIONS (CONVOCATORIA) ─────────────────────────────
+
+model ApplicationCall {
+  id            String     @id @default(cuid(2))
+  seriesId      String
+  slug          String     @unique
+  titleEs       String
+  titleEn       String
+  descriptionEs String?
+  descriptionEn String?
+  status        CallStatus @default(DRAFT)
+  opensAt       DateTime?
+  closesAt      DateTime?
+  fieldsSchema  Json       @default("[]")
+  rulesVersion  String     @default("v1")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  series       EventSeries       @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  applications BandApplication[]
+}
+
+model BandApplication {
+  id             String            @id @default(cuid(2))
+  callId         String
+  status         ApplicationStatus @default(SUBMITTED)
+  bandName       String
+  contactName    String
+  email          String
+  phone          String?
+  isTribute      Boolean           @default(false)
+  genre          String?
+  city           String?
+  description    String?
+  instagram      String?
+  tiktok         String?
+  spotify        String?
+  youtube        String?
+  videoUrl       String?
+  membersJson    Json?
+  riderUrl       String?
+  stagePlotUrl   String?
+  availability   String?
+  notes          String?
+  extraFields    Json              @default("{}")
+  editTokenHash  String?           @unique
+  acceptedBandId String?           @unique
+  submittedAt    DateTime          @default(now())
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  call         ApplicationCall     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  acceptedBand Band?               @relation(fields: [acceptedBandId], references: [id])
+  reviews      ApplicationReview[]
+  consents     Consent[]
+
+  @@index([callId, status])
+}
+
+model ApplicationReview {
+  id            String   @id @default(cuid(2))
+  applicationId String
+  reviewerId    String
+  score         Int?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  application BandApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, reviewerId])
+}
+
+// ───────────────────────────── PRIVACY / INTEGRATIONS ─────────────────────────────
+
+model RetentionPolicy {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  dataKind       String
+  retentionDays  Int?
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, dataKind])
+}
+
+model DataRequest {
+  id             String            @id @default(cuid(2))
+  organizationId String
+  kind           DataRequestKind
+  status         DataRequestStatus @default(RECEIVED)
+  email          String
+  details        String?
+  processedBy    String?
+  processedAt    DateTime?
+  notes          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+model Integration {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  kind           String
+  config         Json     @default("{}")
+  isEnabled      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, kind])
+}
