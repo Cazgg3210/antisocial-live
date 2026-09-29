@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import QRCode from "qrcode";
 import { cn } from "@/components/ui";
@@ -27,7 +27,7 @@ export function StageApp({ slug }: { slug: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneType, state?.scene.version]);
 
-  const graceLeft = useMemo(() => (state?.active?.graceUntil ? Math.max(0, (new Date(state.active.graceUntil).getTime() - now) / 1000) : 0), [state?.active?.graceUntil, now]);
+  const graceLeft = state?.active?.graceUntil ? Math.max(0, (new Date(state.active.graceUntil).getTime() - now) / 1000) : 0;
 
   if (!state) return <Frame connected={connected}><h1 className="text-gradient text-7xl font-black">{t("welcome")}</h1></Frame>;
 
@@ -231,8 +231,10 @@ function Reveal({ state, scene }: { state: StageSnapshot; scene: string }) {
       <ol className="space-y-4">
         {entries.map((e) => {
           const shown = revealed.some((r) => r.performanceId === e.performanceId);
+          // Unrevealed entries are never rendered (not even hidden): the Stage must not leak results before REVEAL.
+          if (!shown) return <li key={e.performanceId} className="h-24 rounded-2xl border border-dashed border-border/40" aria-hidden />;
           return (
-            <li key={e.performanceId} className={cn("flex items-center justify-between rounded-2xl border px-10 py-5 transition", shown ? "anim-rise border-border bg-bg-elevated" : "border-transparent opacity-0")}>
+            <li key={e.performanceId} className="anim-rise flex items-center justify-between rounded-2xl border border-border bg-bg-elevated px-10 py-5">
               <div className="flex items-center gap-8">
                 <span className={cn("w-16 text-6xl font-black tabular-nums", e.position === 1 ? "text-acid" : "text-fg-subtle")}>{e.position}</span>
                 <span className="text-5xl font-bold">{e.bandName}</span>

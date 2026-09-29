@@ -21,7 +21,7 @@ export function EvaluateApp() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [seenNotif, setSeenNotif] = useState<string | null>(null);
+  const seenNotif = useRef<string | null>(null);
   const key = useRef(newKey());
   const loadedFor = useRef<string | null>(null);
   const dirty = useRef(false);
@@ -60,12 +60,11 @@ export function EvaluateApp() {
   // Timer reminders: vibrate/beep when a new notification arrives.
   const latest = ctx?.notifications[0];
   useEffect(() => {
-    if (latest && latest.id !== seenNotif) {
-      setSeenNotif(latest.id);
-      if (seenNotif !== null && "vibrate" in navigator) navigator.vibrate?.([200, 100, 200]);
+    if (latest && latest.id !== seenNotif.current) {
+      if (seenNotif.current !== null && "vibrate" in navigator) navigator.vibrate?.([200, 100, 200]);
+      seenNotif.current = latest.id;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latest?.id]);
+  }, [latest]);
 
   const complete = criteria.length > 0 && criteria.every((c) => values[c.id] !== undefined);
 

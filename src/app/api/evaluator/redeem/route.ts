@@ -10,7 +10,8 @@ const schema = z.object({ token: z.string().min(10), pin: z.string().max(8).opti
 
 export const POST = route(async ({ req, requestId }) => {
   const ip = await clientIp();
-  rateLimit(`redeem:${ip ?? "unknown"}`, { capacity: 10, refillPerSec: 0.1 });
+  // Evaluators share the venue Wi-Fi IP: generous per-IP budget (tokens are 192-bit, brute force is infeasible anyway).
+  rateLimit(`redeem:${ip ?? "unknown"}`, { capacity: 60, refillPerSec: 1 });
   const body = await parseBody(req, schema);
   if (!body.confirm) {
     const peek = await peekEvaluatorToken(body.token);

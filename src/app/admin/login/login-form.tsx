@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
@@ -13,6 +13,12 @@ export function LoginForm({ next }: { next: string }) {
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    // Signals interactivity to E2E tests so they never submit the un-hydrated (native) form.
+    const id = setTimeout(() => setHydrated(true), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +37,7 @@ export function LoginForm({ next }: { next: string }) {
 
   return (
     <Card>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} data-hydrated={hydrated ? "true" : "false"}>
         <Field label={t("login") === "Sign in" ? "Email" : "Correo"}>
           <Input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </Field>

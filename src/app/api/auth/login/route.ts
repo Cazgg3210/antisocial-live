@@ -10,7 +10,7 @@ const schema = z.object({ email: z.string().email(), password: z.string().min(1)
 
 export const POST = route(async ({ req, requestId }) => {
   const ip = await clientIp();
-  rateLimit(`login:${ip ?? "unknown"}`, { capacity: 10, refillPerSec: 0.1 });
+  rateLimit(`login:${ip ?? "unknown"}`, { capacity: 20, refillPerSec: 0.2 });
   const body = await parseBody(req, schema);
   const user = await loginWithPassword(body.email, body.password, { ipHash: ip ? sha256(ip).slice(0, 32) : null, requestId });
   await createAdminSession(user.id);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { calculatePerformance, collectConfigIssues, ScoringError } from "@/modules/scoring-engine";
-import { baseConfig, CRITERIA, PERF_A, PERF_B, sub } from "./fixtures";
+import { baseConfig, CRITERIA, PERF_A, sub } from "./fixtures";
 
 function fullNight(perf = PERF_A) {
   return [

@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Antisocial Live
 
-## Getting Started
+Event Competition & Fan Engagement Platform para **Guerra de Bandas** (Antisocial Rooftop, CDMX). Vota, califica, calcula, audita, presenta en escenario, analiza y monetiza cada noche.
 
-First, run the development server:
+- Stack: Next.js 16 · React 19 · TypeScript · Tailwind 4 · Prisma 7 · PostgreSQL 17 · SSE (LISTEN/NOTIFY) · Docker · Dokploy.
+- Sin Redis, sin workers: una app + una base de datos (ver `docs/adr/ADR-0001`).
+
+## Desarrollo
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env            # ajusta secretos si quieres
+pnpm install
+pnpm docker:dev                 # Postgres 17 en :5480 + Mailpit en :8025
+pnpm db:migrate                 # aplica migraciones (con triggers de inmutabilidad y NOTIFY)
+pnpm seed                       # organización, 16 bandas, 4 noches + final, jurado/staff con links, sponsors, convocatoria
+pnpm dev                        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+El seed imprime: usuarios admin (`admin@antisocial.local` / `Antisocial!Demo2026`), links de jurado/staff de la Noche 1, y las URLs de voto, stage y control room.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Demo de una noche completa sin tocar la UI (200 votantes simulados, jueces, resultados, reveal):
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+node scripts/run-demo-night.mjs <eventId> 50
+```
 
-## Learn More
+## Rutas
 
-To learn more about Next.js, take a look at the following resources:
+| Ruta | Quién |
+|---|---|
+| `/vote/{slug}` | Público (PWA) |
+| `/stage/{slug}` | Pantalla 16:9 |
+| `/j/{token}` · `/s/{token}` → `/evaluate` | Jurado · Staff |
+| `/control/{eventId}` | Operador + manager |
+| `/admin` | Administración |
+| `/apply/{call}` · `/b/report/{token}` | Bandas |
+| `/legal/*` | Aviso de privacidad, bases, publicidad |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Calidad
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm lint && pnpm typecheck
+pnpm test:unit            # Scoring Engine (property-based)
+pnpm test:integration     # Postgres real: transacciones, triggers, políticas
+pnpm test:e2e             # Playwright: noche completa con Stage abierto + seguridad del voto
+k6 run -e SLUG=<slug> -e VOTERS=1000 tests/load/vote-burst.js   # con votación abierta
+```
 
-## Deploy on Vercel
+## Documentación
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`docs/PRODUCT.md` · `BUSINESS_RULES.md` · `ARCHITECTURE.md` · `SCORING_ENGINE.md` · `COMMERCIAL.md` · `OPERATIONS.md` (runbook) · `DEPLOYMENT_DOKPLOY.md` · `BACKUP_RESTORE.md` · `docs/adr/` · `docs/legal/` (las plantillas legales viven en `src/modules/legal/documents.ts` y se sirven en `/legal/*`).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Producción
+
+Ver `docs/DEPLOYMENT_DOKPLOY.md`. Resumen: Dokploy Compose con `docker-compose.yml`, variables de `.env.example`, dominio en el servicio `app`, backups de Postgres a Spaces, `DEPLOYMENT_FREEZE=true` el día del evento.

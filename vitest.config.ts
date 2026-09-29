@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
     environment: "node",
+    setupFiles: ["tests/integration/setup.ts"],
+    fileParallelism: false,
     coverage: { provider: "v8", include: ["src/modules/**"] },
     testTimeout: 30_000,
   },

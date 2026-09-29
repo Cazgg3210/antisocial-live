@@ -7,7 +7,7 @@ if [ "$DEPLOYMENT_FREEZE" = "true" ]; then
   echo "[entrypoint] DEPLOYMENT_FREEZE=true — skipping migrations"
 else
   echo "[entrypoint] applying migrations"
-  node node_modules/prisma/build/index.js migrate deploy
+  (cd /app/migrate && node node_modules/prisma/build/index.js migrate deploy)
 fi
 
 exec "$@"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Alert, Badge, Button, Card, Input, Textarea, cn } from "@/components/ui";
 import { ScoreSelector } from "@/components/score-selector";
@@ -24,30 +24,32 @@ export function VoteApp({ slug }: { slug: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ confirmation: string; status: string } | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
-  const startedAt = useRef<number>(Date.now());
+  const startedAt = useRef<number>(0);
   const submissionKey = useRef<string>(newKey());
   const { state: live } = useLiveState<Live>(`/api/vote/${slug}/stream`, null);
 
-  const load = async () => {
+  // Loads the context; when the voter already has a submission, prefill values/comment (async callback, not in render).
+  const load = useCallback(async () => {
     try {
       const data = await api<Ctx>(`/api/vote/${slug}${typeof window !== "undefined" ? window.location.search : ""}`);
       setCtx(data);
       setError(null);
+      if (data.existing) {
+        setValues(Object.fromEntries(data.existing.items.map((i) => [i.criterionId, i.value])));
+        setComment(data.existing.comment ?? "");
+      }
     } catch (e) {
       setError(e instanceof ApiError && e.status === 404 ? t("notFound") : t("notFound"));
     }
-  };
-  useEffect(() => {
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  }, [slug, t]);
 
-  // Reload context whenever the live state changes band or status.
+  // Initial load + reload whenever the live state changes band or status.
   const liveKey = `${live?.performanceId ?? ""}:${live?.status ?? ""}`;
   useEffect(() => {
-    if (live) void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveKey]);
+    // Deferred so state updates happen in the async continuation, never in the effect body.
+    const id = setTimeout(() => void load(), 0);
+    return () => clearTimeout(id);
+  }, [load, liveKey]);
 
   const perf = ctx?.performance ?? null;
   const votingOpen = perf?.status === "VOTING_OPEN" || perf?.status === "GRACE_PERIOD";
@@ -56,13 +58,6 @@ export function VoteApp({ slug }: { slug: string }) {
   const anchors = useMemo(() => ({ "1": t("anchors.1"), "5": t("anchors.5"), "8": t("anchors.8"), "10": t("anchors.10") }), [t]);
   const complete = criteria.length > 0 && criteria.every((c) => values[c.id] !== undefined);
   const alreadyVoted = !!ctx?.existing && !result;
-
-  useEffect(() => {
-    if (ctx?.existing) {
-      setValues(Object.fromEntries(ctx.existing.items.map((i) => [i.criterionId, i.value])));
-      setComment(ctx.existing.comment ?? "");
-    }
-  }, [ctx?.existing]);
 
   useEffect(() => {
     if (ctx?.sponsor) void api("/api/sponsors/impression", { method: "POST", json: { placementId: ctx.sponsor.placementId, eventId: ctx.event.id, performanceId: perf?.id ?? null } }).catch(() => {});
@@ -271,7 +266,6 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function PrivacyFooter() {
   const t = useTranslations("vote");
-  const tc = useTranslations("common");
   return (
     <p className="mt-8 text-center text-xs text-fg-subtle">
       {t.rich("privacyShort", { link: (chunks) => <a className="underline" href="/legal/aviso-de-privacidad" target="_blank" rel="noreferrer">{chunks}</a> })}

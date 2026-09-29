@@ -13,13 +13,23 @@ export function pgPool(): Pool {
   return globalForDb.pool;
 }
 
-export const db: PrismaClient =
-  globalForDb.prisma ??
-  new PrismaClient({
-    adapter: new PrismaPg(pgPool()),
-    log: env().NODE_ENV === "development" ? ["warn", "error"] : ["error"],
-  });
+function createClient(): PrismaClient {
+  if (!globalForDb.prisma) {
+    globalForDb.prisma = new PrismaClient({
+      adapter: new PrismaPg(pgPool()),
+      log: env().NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    });
+  }
+  return globalForDb.prisma;
+}
 
-if (env().NODE_ENV !== "production") globalForDb.prisma = db;
+/** Lazy: the client (and env validation) is created on first use, never at import/build time. */
+export const db: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_t, prop) {
+    const client = createClient();
+    const value = Reflect.get(client, prop) as unknown;
+    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(client) : value;
+  },
+});
 
 export type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];

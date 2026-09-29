@@ -131,10 +131,14 @@ export function Label({ children, htmlFor, className }: { children: React.ReactN
 }
 
 export function Field({ label, children, hint, error }: { label: string; children: React.ReactNode; hint?: string; error?: string }) {
+  // Associate the label with the (single) control so screen readers and tests can find it by name.
+  const generated = React.useId();
+  const child = React.isValidElement<{ id?: string }>(children) ? React.cloneElement(children, { id: children.props.id ?? generated }) : children;
+  const id = React.isValidElement<{ id?: string }>(children) ? (children.props.id ?? generated) : undefined;
   return (
     <div className="mb-4">
-      <Label>{label}</Label>
-      {children}
+      <Label htmlFor={id}>{label}</Label>
+      {child}
       {hint && !error && <p className="mt-1 text-xs text-fg-subtle">{hint}</p>}
       {error && (
         <p className="mt-1 text-xs text-danger" role="alert">

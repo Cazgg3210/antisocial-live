@@ -1,5 +1,11 @@
-import "dotenv/config";
 import { defineConfig } from "prisma/config";
+
+// Prisma 7 does not load .env by itself. Node 24 can; ignore when the file is absent (Docker/CI use real env vars).
+try {
+  process.loadEnvFile?.();
+} catch {
+  /* no .env present */
+}
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
