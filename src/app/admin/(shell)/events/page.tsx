@@ -21,13 +21,13 @@ export default async function EventsPage() {
           <tbody className="divide-y divide-border">
             {events.map((e) => (
               <tr key={e.id}>
-                <td className="py-2 font-semibold"><Link className="hover:underline" href={`/admin/events/${e.id}`}>{e.name}</Link><div className="font-mono text-xs text-fg-subtle">{e.slug}</div></td>
+                <td className="py-2 font-semibold"><Link className="text-cyan underline" href={`/admin/events/${e.id}`}>{e.name}</Link><div className="font-mono text-xs text-fg-subtle">{e.slug}</div></td>
                 <td>{e.series.name}</td>
                 <td>{e.scheduledAt.toLocaleDateString("es-MX", { timeZone: "America/Mexico_City" })}</td>
                 <td>{e.rounds.reduce((s, r) => s + r._count.performances, 0)}</td>
                 <td><Badge tone={e.mode === "LIVE" ? "acid" : "warning"}>{e.mode}</Badge></td>
                 <td><Badge tone={e.status === "LIVE" ? "success" : "neutral"}>{e.status}</Badge></td>
-                <td className="text-right"><Link className="text-cyan underline" href={`/control/${e.id}`}>Control</Link></td>
+                <td className="space-x-3 text-right whitespace-nowrap"><Link className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-black" href={`/admin/events/${e.id}?tab=lineup`}>Configurar</Link><Link className="text-cyan underline" href={`/control/${e.id}`}>Control</Link></td>
               </tr>
             ))}
           </tbody>
