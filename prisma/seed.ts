@@ -60,11 +60,14 @@ async function main() {
 
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@antisocial.local";
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "change-me";
+  // SEED_RESET_ADMIN_PASSWORD=true forces the password from SEED_ADMIN_PASSWORD onto an existing admin (recovery path).
+  const resetPassword = process.env.SEED_RESET_ADMIN_PASSWORD === "true";
   const admin = await db.user.upsert({
     where: { email: adminEmail },
-    create: { organizationId: org.id, email: adminEmail, name: "Luis (Admin)", passwordHash: await pw(adminPassword), roles: { create: [{ role: "SUPER_ADMIN" }] } },
-    update: {},
+    create: { organizationId: org.id, email: adminEmail, name: "Admin", passwordHash: await pw(adminPassword), roles: { create: [{ role: "SUPER_ADMIN" }] } },
+    update: resetPassword ? { passwordHash: await pw(adminPassword), isActive: true } : {},
   });
+  if (resetPassword) console.log(`Admin password reset for ${adminEmail}`);
 
   for (const kind of ["SECURITY_SIGNALS", "AUDIENCE_CONTACTS", "RESULTS", "AUDIT"]) {
     await db.retentionPolicy.upsert({
