@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Badge, Card, CardTitle, Field, Input, Select } from "@/components/ui";
 import { ActionForm } from "@/components/admin/form-bits";
 import { db } from "@/lib/db";
-import { createEventAction } from "@/modules/admin/actions";
+import { createEventAction, createSeriesAction } from "@/modules/admin/actions";
 
 export default async function EventsPage() {
   const [events, series, venues] = await Promise.all([
@@ -43,6 +43,17 @@ export default async function EventsPage() {
             <Field label="Venue"><Select name="venueId">{venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</Select></Field>
           </div>
           <p className="text-xs text-fg-subtle">Se crea en modo REHEARSAL con la configuración demo (pesos 40/20/40, 7 criterios). Ajusta todo antes de pasar a LIVE.</p>
+        </ActionForm>
+      </Card>
+      <Card>
+        <CardTitle>Temporadas ({series.length})</CardTitle>
+        {series.length > 0 && <p className="mb-3 text-sm text-fg-muted">{series.map((s) => s.name).join(" · ")}</p>}
+        <ActionForm action={createSeriesAction} submitLabel="Crear temporada">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Nombre"><Input name="name" required placeholder="Guerra de Bandas 2027" /></Field>
+            <Field label="Descripción (opcional)"><Input name="description" /></Field>
+          </div>
+          <p className="text-xs text-fg-subtle">Una temporada agrupa las noches y la final de un mismo concurso (bracket).</p>
         </ActionForm>
       </Card>
     </div>

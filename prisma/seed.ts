@@ -77,6 +77,13 @@ async function main() {
     });
   }
 
+  // A first season so events can be created right away (the admin can rename it or add more).
+  await db.eventSeries.upsert({
+    where: { organizationId_slug: { organizationId: org.id, slug: "guerra-de-bandas" } },
+    create: { organizationId: org.id, name: "Guerra de Bandas", slug: "guerra-de-bandas" },
+    update: {},
+  });
+
   if (minimal) {
     console.log(`Admin: ${adminEmail}`);
     return;

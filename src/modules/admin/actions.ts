@@ -35,9 +35,23 @@ async function guard(fn: (s: AdminSession) => Promise<ActionResult | void>, role
 
 // ───────────────────────── EVENTS ─────────────────────────
 
+export async function createSeriesAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
+  return guard(async (s) => {
+    const name = str(fd, "name");
+    if (!name) throw new AppError("VALIDATION", "El nombre es obligatorio");
+    let slug = slugify(name);
+    for (let i = 2; await db.eventSeries.findUnique({ where: { organizationId_slug: { organizationId: s.organizationId, slug } } }); i++) slug = `${slugify(name)}-${i}`;
+    await db.eventSeries.create({ data: { organizationId: s.organizationId, name, slug, description: opt(str(fd, "description")) } });
+    revalidatePath("/admin/events");
+    return { ok: true, message: "Temporada creada" };
+  });
+}
+
 export async function createEventAction(_: ActionResult | null, fd: FormData): Promise<ActionResult> {
   let id: string | null = null;
   const r = await guard(async (s) => {
+    if (!str(fd, "seriesId")) throw new AppError("VALIDATION", "Primero crea una temporada (abajo) y selecciónala.");
+    if (!str(fd, "venueId")) throw new AppError("VALIDATION", "No hay venue configurado.");
     const ev = await createEvent(
       { userId: s.userId, name: s.name },
       { seriesId: str(fd, "seriesId"), venueId: str(fd, "venueId"), name: str(fd, "name"), scheduledAt: new Date(str(fd, "scheduledAt")), mode: "REHEARSAL" },
